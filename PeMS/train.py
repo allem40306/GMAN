@@ -42,12 +42,24 @@ parser.add_argument('--model_file', default = 'data/GMAN(PeMS)',
                     help = 'save the model to disk')
 parser.add_argument('--log_file', default = 'data/log(PeMS)',
                     help = 'log file')
+parser.add_argument('--gpu_device', default = 0,
+                    help = 'gpu device id')
 args = parser.parse_args()
 
 start = time.time()
 
 log = open(args.log_file, 'w')
 utils.log_string(log, str(args)[10 : -1])
+
+gpu_devices = tf.config.experimental.list_physical_devices('GPU')
+devices_id = int(args.gpu_device)
+if gpu_devices:
+    tf.config.experimental.set_visible_devices(gpu_devices[devices_id], 'GPU')
+print(gpu_devices)
+
+config = tf.compat.v1.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.compat.v1.Session(config=config)
 
 # load data
 utils.log_string(log, 'loading data...')
