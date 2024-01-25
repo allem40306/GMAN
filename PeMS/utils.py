@@ -24,6 +24,16 @@ def metric(pred, label):
         mape = np.mean(mape)
     return mae, rmse, mape
 
+def seq2instance3D(data, P, Q):
+    num_step, dims, columns = data.shape
+    num_sample = num_step - P - Q + 1
+    x = np.zeros(shape = (num_sample, P, dims, columns))
+    y = np.zeros(shape = (num_sample, Q, dims, columns))
+    for i in range(num_sample):
+        x[i] = data[i : i + P]
+        y[i] = data[i + P : i + P + Q]
+    return x, y
+
 def seq2instance(data, P, Q):
     num_step, dims = data.shape
     num_sample = num_step - P - Q + 1
@@ -36,10 +46,10 @@ def seq2instance(data, P, Q):
 
 def loadData(args):
     # Traffic
-    df = pd.read_hdf(args.traffic_file)
-    Traffic = df.values
+    with np.load(args.traffic_file) as infile:
+        Traffic = infile["data"]
     # train/val/test 
-    num_step = df.shape[0]
+    num_step = Traffic.shape[0]
     train_steps = round(args.train_ratio * num_step)
     test_steps = round(args.test_ratio * num_step)
     val_steps = num_step - train_steps - test_steps
@@ -47,14 +57,15 @@ def loadData(args):
     val = Traffic[train_steps : train_steps + val_steps]
     test = Traffic[-test_steps :]
     # X, Y 
-    trainX, trainY = seq2instance(train, args.P, args.Q)
-    valX, valY = seq2instance(val, args.P, args.Q)
-    testX, testY = seq2instance(test, args.P, args.Q)
+    trainX, trainY = seq2instance3D(train, args.P, args.Q)
+    valX, valY = seq2instance3D(val, args.P, args.Q)
+    testX, testY = seq2instance3D(test, args.P, args.Q)
     # normalization
+    eps = 1e-6
     mean, std = np.mean(trainX), np.std(trainX)
-    trainX = (trainX - mean) / std
-    valX = (valX - mean) / std
-    testX = (testX - mean) / std
+    trainX = (trainX - mean) / (std + eps)
+    valX = (valX - mean) / (std + eps)
+    testX = (testX - mean) / (std + eps)
 
     # spatial embedding 
     f = open(args.SE_file, mode = 'r')
@@ -67,8 +78,8 @@ def loadData(args):
         index = int(temp[0])
         SE[index] = temp[1 :]
         
-    # temporal embedding 
-    Time = df.index
+    # temporal embedding
+    Time = pd.date_range(start=args.begin_time, periods=Traffic.shape[0], freq="1H")
     dayofweek =  np.reshape(Time.weekday, newshape = (-1, 1))
     timeofday = (Time.hour * 3600 + Time.minute * 60 + Time.second) \
                 // Time.freq.delta.total_seconds()
@@ -78,6 +89,9 @@ def loadData(args):
     train = Time[: train_steps]
     val = Time[train_steps : train_steps + val_steps]
     test = Time[-test_steps :]
+    # train = np.expand_dims(train, axis = 2)
+    # val = np.expand_dims(val, axis = 2)
+    # test = np.expand_dims(test, axis = 2)
     # shape = (num_sample, P + Q, 2)
     trainTE = seq2instance(train, args.P, args.Q)
     trainTE = np.concatenate(trainTE, axis = 1).astype(np.int32)

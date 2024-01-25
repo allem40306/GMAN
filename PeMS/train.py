@@ -18,10 +18,10 @@ parser.add_argument('--K', type = int, default = 8,
                     help = 'number of attention heads')
 parser.add_argument('--d', type = int, default = 8,
                     help = 'dims of each head attention outputs')
-parser.add_argument('--train_ratio', type = float, default = 0.7,
-                    help = 'training set [default : 0.7]')
-parser.add_argument('--val_ratio', type = float, default = 0.1,
-                    help = 'validation set [default : 0.1]')
+parser.add_argument('--train_ratio', type = float, default = 0.6,
+                    help = 'training set [default : 0.6]')
+parser.add_argument('--val_ratio', type = float, default = 0.2,
+                    help = 'validation set [default : 0.2]')
 parser.add_argument('--test_ratio', type = float, default = 0.2,
                     help = 'testing set [default : 0.2]')
 parser.add_argument('--batch_size', type = int, default = 32,
@@ -42,8 +42,10 @@ parser.add_argument('--model_file', default = 'data/GMAN(PeMS)',
                     help = 'save the model to disk')
 parser.add_argument('--log_file', default = 'data/log(PeMS)',
                     help = 'log file')
-parser.add_argument('--gpu_device', default = 0,
+parser.add_argument('--gpu_device', type = int, default = 0,
                     help = 'gpu device id')
+parser.add_argument('--begin_time', default = '1970-01-01 00:00:00',
+                    help = 'data begin time')
 args = parser.parse_args()
 
 start = time.time()
@@ -73,8 +75,8 @@ utils.log_string(log, 'data loaded!')
 # train model
 utils.log_string(log, 'compiling model...')
 T = 24 * 60 // args.time_slot
-num_train, _, N = trainX.shape
-X, TE, label, is_training = model.placeholder(args.P, args.Q, N)
+num_train, _, N, columns = trainX.shape
+X, TE, label, is_training = model.placeholder(args.P, args.Q, N, columns)
 global_step = tf.Variable(0, trainable = False)
 bn_momentum = tf.compat.v1.train.exponential_decay(
     0.5, global_step,
@@ -82,7 +84,7 @@ bn_momentum = tf.compat.v1.train.exponential_decay(
     decay_rate = 0.5, staircase = True)
 bn_decay = tf.minimum(0.99, 1 - bn_momentum)
 pred = model.GMAN(
-    X, TE, SE, args.P, args.Q, T, args.L, args.K, args.d,
+    X, TE, SE, args.P, args.Q, T, args.L, args.K, args.d, columns,
     bn = True, bn_decay = bn_decay, is_training = is_training)
 pred = pred * std + mean
 loss = model.mae_loss(pred, label)
@@ -146,7 +148,7 @@ for epoch in range(args.max_epoch):
             TE: valTE[start_idx : end_idx],
             label: valY[start_idx : end_idx],
             is_training: False}
-        loss_batch = sess.run(loss, feed_dict = feed_dict)
+        loss_batch = sess.run(loss, feed_dict = feed_dict)  
         val_loss += loss_batch * (end_idx - start_idx)
     val_loss /= num_val
     end_val = time.time()
@@ -157,6 +159,7 @@ for epoch in range(args.max_epoch):
          args.max_epoch, end_train - start_train, end_val - start_val))
     utils.log_string(
         log, 'train loss: %.4f, val_loss: %.4f' % (train_loss, val_loss))
+    saver.save(sess, args.model_file)
     if val_loss <= val_loss_min:
         utils.log_string(
             log,
@@ -164,7 +167,6 @@ for epoch in range(args.max_epoch):
             (val_loss_min, val_loss, args.model_file))
         wait = 0
         val_loss_min = val_loss
-        saver.save(sess, args.model_file)
     else:
         wait += 1
         
@@ -227,8 +229,9 @@ utils.log_string(log, 'test             %.2f\t\t%.2f\t\t%.2f%%' %
                  (test_mae, test_rmse, test_mape * 100))
 utils.log_string(log, 'performance in each prediction step')
 MAE, RMSE, MAPE = [], [], []
+np.savez_compressed(f"{args.model_file}_result.npz", pred=testPred, target=testY)
 for q in range(args.Q):
-    mae, rmse, mape = utils.metric(testPred[:, q], testY[:, q])
+    mae, rmse, mape = utils.metric(testPred[:, :q + 1], testY[:, :q + 1])
     MAE.append(mae)
     RMSE.append(rmse)
     MAPE.append(mape)

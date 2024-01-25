@@ -1,10 +1,10 @@
 import tf_utils
 import tensorflow as tf
 
-def placeholder(P, Q, N):
-    X = tf.compat.v1.placeholder(shape = (None, P, N), dtype = tf.float32)
+def placeholder(P, Q, N, C):
+    X = tf.compat.v1.placeholder(shape = (None, P, N, C), dtype = tf.float32)
     TE = tf.compat.v1.placeholder(shape = (None, P + Q, 2), dtype = tf.int32)
-    label = tf.compat.v1.placeholder(shape = (None, Q, N), dtype = tf.float32)
+    label = tf.compat.v1.placeholder(shape = (None, Q, N, C), dtype = tf.float32)
     is_training = tf.compat.v1.placeholder(shape = (), dtype = tf.bool)
     return X, TE, label, is_training
 
@@ -218,7 +218,7 @@ def transformAttention(X, STE_P, STE_Q, K, d, bn, bn_decay, is_training):
         bn = bn, bn_decay = bn_decay, is_training = is_training)
     return X
     
-def GMAN(X, TE, SE, P, Q, T, L, K, d, bn, bn_decay, is_training):
+def GMAN(X, TE, SE, P, Q, T, L, K, d, columns, bn, bn_decay, is_training):
     '''
     GMAN
     X：       [batch_size, P, N]
@@ -230,11 +230,12 @@ def GMAN(X, TE, SE, P, Q, T, L, K, d, bn, bn_decay, is_training):
     L：       number of STAtt blocks in the encoder/decoder
     K：       number of attention heads
     d：       dimension of each attention head outputs
+    columns
     return：  [batch_size, Q, N]
     '''
     D = K * d
     # input
-    X = tf.expand_dims(X, axis = -1)
+    # X = tf.expand_dims(X, axis = -1)
     X = FC(
         X, units = [D, D], activations = [tf.nn.relu, None],
         bn = bn, bn_decay = bn_decay, is_training = is_training)
@@ -253,11 +254,15 @@ def GMAN(X, TE, SE, P, Q, T, L, K, d, bn, bn_decay, is_training):
         X = STAttBlock(X, STE_Q, K, d, bn, bn_decay, is_training)
     # output
     X = FC(
-        X, units = [D, 1], activations = [tf.nn.relu, None],
+        X, units = [D, columns], activations = [tf.nn.relu, None],
         bn = bn, bn_decay = bn_decay, is_training = is_training)
-    return tf.squeeze(X, axis = 3)
+    print(X.shape)
+    return X
+    # return tf.squeeze(X, axis = 3)
 
 def mae_loss(pred, label):
+    print(pred.shape)
+    print(label.shape)
     mask = tf.not_equal(label, 0)
     mask = tf.cast(mask, tf.float32)
     mask /= tf.reduce_mean(mask)

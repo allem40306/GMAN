@@ -11,8 +11,8 @@ walk_length = 80
 dimensions = 64
 window_size = 10
 iter = 1000
-Adj_file = '../data/Adj.txt'
-SE_file = '../data/SE.txt'
+Adj_file = '../data/MRT_adj.txt'
+SE_file = '../data/MRT_SE.txt'
 
 def read_graph(edgelist):
     G = nx.read_edgelist(
@@ -24,8 +24,8 @@ def read_graph(edgelist):
 def learn_embeddings(walks, dimensions, output_file):
     walks = [list(map(str, walk)) for walk in walks]
     model = Word2Vec(
-        walks, size = dimensions, window = 10, min_count=0, sg=1,
-        workers = 8, iter = iter)
+        walks, vector_size = dimensions, window = 10, min_count=0, sg=1,
+        workers = 8, epochs = iter)
     model.wv.save_word2vec_format(output_file)
 	
     return
