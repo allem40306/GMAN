@@ -261,14 +261,28 @@ def GMAN(X, TE, SE, P, Q, T, L, K, d, columns, bn, bn_decay, is_training):
     # return tf.squeeze(X, axis = 3)
 
 def mae_loss(pred, label):
-    print(pred.shape)
-    print(label.shape)
     mask = tf.not_equal(label, 0)
     mask = tf.cast(mask, tf.float32)
     mask /= tf.reduce_mean(mask)
     mask = tf.compat.v2.where(
         condition = tf.math.is_nan(mask), x = 0., y = mask)
     loss = tf.abs(tf.subtract(pred, label))
+    loss *= mask
+    loss = tf.compat.v2.where(
+        condition = tf.math.is_nan(loss), x = 0., y = loss)
+    loss = tf.reduce_mean(loss)
+    return loss
+
+def huber_loss(pred, label, delta=1.4):
+    mask = tf.not_equal(label, 0)
+    mask = tf.cast(mask, tf.float32)
+    mask /= tf.reduce_mean(mask)
+    mask = tf.compat.v2.where(
+        condition = tf.math.is_nan(mask), x = 0., y = mask)
+    error = tf.abs(pred - label)
+    quadratic = tf.minimum(error, delta)
+    linear = error - quadratic
+    loss = 0.5 * tf.square(quadratic) + delta * linear
     loss *= mask
     loss = tf.compat.v2.where(
         condition = tf.math.is_nan(loss), x = 0., y = loss)
