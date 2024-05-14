@@ -229,7 +229,7 @@ utils.log_string(log, 'test             %.2f\t\t%.2f\t\t%.2f%%' %
                  (test_mae, test_rmse, test_mape * 100))
 utils.log_string(log, 'performance in each prediction step')
 MAE, RMSE, MAPE = [], [], []
-np.savez_compressed(f"{args.model_file}_result.npz", pred=testPred, target=testY)
+np.savez_compressed(f"{args.model_file.split("/")[0]}/result.npz", preiction=testPred, target=testY)
 for q in range(args.Q):
     mae, rmse, mape = utils.metric(testPred[:, :q + 1], testY[:, :q + 1])
     MAE.append(mae)
